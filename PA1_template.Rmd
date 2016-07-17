@@ -5,21 +5,86 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
+```{r readdataset, message = FALSE, warning = FALSE}
 
+if (!(c("activity.csv") %in% list.files())) 
+    stop("This script must be run from the directory that contains activity.csv")
 
+if (!require(dplyr)) stop("This script requires dplyr to be installed")
+if (!require(ggplot2)) stop("This script requires ggplot to be installed")
+if (!require(data.table)) stop("This script requires data.table to be installed")
 
+data <- read.csv("activity.csv")
+```
 ## What is mean total number of steps taken per day?
+```{r totalsteps, message = FALSE, warning = FALSE}
+total_steps <- data %>%
+    group_by(date) %>%
+    summarise(total = sum(steps, na.rm = T))
 
+hist(total_steps$total,
+     main = "Histogram of total steps per day",
+     xlab = "Total steps per day")
 
+mea <- mean(total_steps$total)
+med <- median(total_steps$total)
+```
+The mean number of steps taken per day is `r mea`.
+The median number of steps taken per day is `r med`. 
 
 ## What is the average daily activity pattern?
+``` {r dailyactivity}
+five_min_average <- data %>%
+    group_by(interval) %>%
+    summarise(mean(steps, na.rm = T))
+plot(five_min_average,
+     type = "l",
+     main = "Average steps taken per five minute interval in a day",
+     xlab = "Five minute interval number in a 24 hour day",
+     ylab = "Average number of steps")
 
+maximum <- which.max(five_min_average$`mean(steps, na.rm = T)`)
+```
 
+The 5 minute interval with the maximum average number of steps taken is `r maximum`.
 
 ## Imputing missing values
+``` {r missingdata, message = FALSE, warning = FALSE}
+cnt <- filter(data, is.na(steps))
+dt <- data.table(data)
+dt[is.na(steps), steps := five_min_average[, 2]]
+total_nona_steps <- dt %>%
+    group_by(date) %>%
+    summarise(total = sum(steps))
+hist(total_nona_steps$total,
+     main = "Histogram of total steps per day (NAs imputed)",
+     xlab = "Total steps per day")
+mea_nona <- mean(total_nona_steps$total)
+med_nona <- median(total_nona_steps$total)
+```
+The mean number of steps (na removed) taken per day is `r mea_nona`.
+The median number of steps (na removed taken per day is `r med_nona`. 
 
-
+This shows that with na removed, the mean steps and median steps are lower than when the na's are replaced with mean five minute interval steps.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r dayofweek, message = FALSE, warning = FALSE}
+
+dt[weekdays(as.Date(dt$date)) %in% c('Saturday', 'Sunday'),
+   dayofweek := factor("weekend")]
+dt[is.na(dayofweek), dayofweek := factor("weekday")]
+
+five_min_average_day_of_week <- dt %>%
+    group_by(dayofweek, interval) %>%
+    summarise(mean = mean(steps))
+
+plot <- ggplot(five_min_average_day_of_week, 
+               aes(interval, mean)) + 
+    geom_line() +
+    facet_grid(dayofweek ~ .) +
+    labs(list(title = "Average steps taken per 5 min interval",
+              x = "Interval", 
+              y = "Average number of steps"))
+print(plot)
+```
